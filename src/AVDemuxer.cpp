@@ -351,6 +351,7 @@ bool AVDemuxer::seek(qint64 pos)
         qWarning("Invalid seek position %lld %.2f. valid range [0, %lld]", upos, double(upos)/double(durationUs()), durationUs());
         return false;
     }
+#ifndef IGNORE_SEEK_TIMER
     if (seek_timer.isValid()) {
         //why sometimes seek_timer.elapsed() < 0
         if (!seek_timer.hasExpired(kSeekInterval)) {
@@ -361,6 +362,7 @@ bool AVDemuxer::seek(qint64 pos)
     } else {
         seek_timer.start();
     }
+#endif
 
     QMutexLocker lock(&mutex);
     Q_UNUSED(lock);
@@ -395,6 +397,8 @@ bool AVDemuxer::seek(qint64 pos)
         qWarning("[AVDemuxer] seek error: %s", av_err2str(ret));
         return false;
     }
+    else
+        eof = false;
     //replay
     qDebug("startTime: %lld", startTime());
     if (upos <= startTime()) {

@@ -55,6 +55,9 @@ public:
     int width() const;
     int height() const;
 
+    QImage toImage(QImage::Format fmt = QImage::Format_ARGB32, const QSize& outSize = QSize());
+    QImage toImage(const QSize& outSize) {return toImage(QImage::Format_ARGB32, outSize);}
+
 protected:
     VideoDecoder(VideoDecoderPrivate& d);
 };

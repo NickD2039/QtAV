@@ -34,11 +34,26 @@ public:
         AVDecoderPrivate()
       , width(0)
       , height(0)
+      , scale_ctx(0)
+      , rgb_frame(0)
+      , rgb_buffer(0)
     {}
     virtual ~VideoDecoderPrivate()
-    {}
+    {
+        if(rgb_frame)
+            av_free(rgb_frame);
+        if (scale_ctx)
+            sws_freeContext(scale_ctx);
+        if (rgb_buffer)
+            av_free(rgb_buffer);
+    }
 
     int width, height;
+
+    SwsContext* scale_ctx;
+    AVFrame* rgb_frame;
+    uint8_t* rgb_buffer;
+    QImage outImage;
 };
 
 } //namespace QtAV

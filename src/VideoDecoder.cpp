@@ -23,6 +23,7 @@
 #include <QtAV/private/VideoDecoder_p.h>
 #include <QtCore/QSize>
 #include "QtAV/factory.h"
+#include <QtDebug>
 
 namespace QtAV {
 
@@ -95,11 +96,11 @@ bool VideoDecoder::decode(const QByteArray &encoded)
     }
     if (!d.got_frame_ptr) {
         qWarning("no frame could be decompressed: %s", av_err2str(ret));
-        return true;
-    }
-    if (!d.codec_ctx->width || !d.codec_ctx->height)
         return false;
-    //qDebug("codec %dx%d, frame %dx%d", d.codec_ctx->width, d.codec_ctx->height, d.frame->width, d.frame->height);
+    }
+    if (!w || !h)
+        return false;
+    //qDebug("codec %dx%d, frame %dx%d", w, h, d.frame->width, d.frame->height);
     d.width = d.frame->width;
     d.height = d.frame->height;
     //avcodec_align_dimensions2(d.codec_ctx, &d.width_align, &d.height_align, aligns);
@@ -149,5 +150,85 @@ VideoFrame VideoDecoder::frame()
     frame.setBytesPerLine(d.frame->linesize);
     return frame;
 }
+
+QImage VideoDecoder::toImage(QImage::Format fmt, const QSize& outSize_)
+{
+    DPTR_D(VideoDecoder);
+
+    AVPixelFormat ffmt = (AVPixelFormat) d.frame->format;
+    qDebug() << (int) ffmt;
+
+    int w = d.codec_ctx->width;
+    int h = d.codec_ctx->height;
+
+    if (!d.rgb_frame) // first time setup
+    {
+       d.rgb_frame = av_frame_alloc();
+       Q_ASSERT(d.rgb_frame);
+       if (!d.rgb_frame)
+           return QImage();
+
+       // Determine required buffer size and allocate rgb_buffer
+       int numBytes = avpicture_get_size(PIX_FMT_RGB24, w, h);
+       d.rgb_buffer = new uint8_t[numBytes];
+
+       // Assign appropriate parts of rgb_buffer to image planes in rgb_frame
+       avpicture_fill((AVPicture *)d.rgb_frame, d.rgb_buffer, PIX_FMT_RGB24, w, h);
+
+    }
+
+    // Convert the image format (init the context the first time)
+    d.scale_ctx = sws_getCachedContext(d.scale_ctx,w, h, d.codec_ctx->pix_fmt, w, h, PIX_FMT_RGB24, SWS_BICUBIC, NULL, NULL, NULL);
+
+    if (d.scale_ctx)
+    {
+        sws_scale(d.scale_ctx, d.frame->data, d.frame->linesize, 0, h, d.rgb_frame->data, d.rgb_frame->linesize);
+
+        QSize inSize(w, h);
+        QSize outSize = outSize_.isNull() ? inSize : outSize_;
+
+        // keep previous outImage if dimensions and format are unchanged
+        if ((d.outImage.size() != outSize) || (d.outImage.format() != fmt))
+            d.outImage = QImage(outSize, fmt);
+
+        if (inSize == outSize) // straightforward RGB24 to RGB32 conversion
+        {
+            for (int y=0; y<h; ++y)
+            {
+                QRgb* outLine = (QRgb*) d.outImage.scanLine(y);
+                uchar* inLine = d.rgb_frame->data[0]+y*d.rgb_frame->linesize[0];
+                for (int x=0; x<w; ++x)
+                {
+                    uchar* inRgb = inLine + (x*3);
+                    outLine[x] = qRgb(inRgb[0], inRgb[1], inRgb[2]);
+                }
+            }
+        }
+        else // scale to outSize
+        {
+            int outHeight = outSize.height();
+            int outWidth = outSize.width();
+            int inHeight = inSize.height();
+            int inWidth = inSize.width();
+            for (int y=0; y<outHeight; ++y)
+            {
+                int yy = y * inHeight / outHeight;
+                Q_ASSERT(yy < inHeight);
+                QRgb* outLine = (QRgb*) d.outImage.scanLine(y);
+                uchar* inLine = d.rgb_frame->data[0]+yy*d.rgb_frame->linesize[0];
+                for (int x=0; x<outWidth; ++x)
+                {
+                    int xx = x * inWidth / outWidth;
+                    Q_ASSERT(xx < inWidth);
+                    uchar* inRgb = inLine + (xx*3);
+                    outLine[x] = qRgb(inRgb[0], inRgb[1], inRgb[2]);
+                }
+            }
+        }
+    }
+
+    return d.outImage;
+}
+
 
 } //namespace QtAV
