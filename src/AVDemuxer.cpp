@@ -351,7 +351,7 @@ bool AVDemuxer::seek(qint64 pos)
         qWarning("Invalid seek position %lld %.2f. valid range [0, %lld]", upos, double(upos)/double(durationUs()), durationUs());
         return false;
     }
-#ifndef IGNORE_SEEK_TIMER
+#ifndef IGNORE_SEEK_TIMER // why is this a problem? If we're using AVDemuxer directly (non-threaded) and user scrubs position, then this will fail.
     if (seek_timer.isValid()) {
         //why sometimes seek_timer.elapsed() < 0
         if (!seek_timer.hasExpired(kSeekInterval)) {

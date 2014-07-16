@@ -38,6 +38,7 @@ public:
     Packet();
     inline bool isValid() const;
     inline bool isEnd() const;
+    inline bool overlapsPts(qreal pts_) const;
     void markEnd();
 
     bool hasKeyFrame;
@@ -56,6 +57,11 @@ bool Packet::isValid() const
 bool Packet::isEnd() const
 {
     return pts == kEndPts;
+}
+
+bool Packet::overlapsPts(qreal pts_) const
+{
+    return (pts_ >= pts) && (pts_ < (pts + duration));
 }
 
 template <typename T> class StdQueue : public std::queue<T>

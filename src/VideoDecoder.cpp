@@ -98,7 +98,7 @@ bool VideoDecoder::decode(const QByteArray &encoded)
         qWarning("no frame could be decompressed: %s", av_err2str(ret));
         return false;
     }
-    if (!w || !h)
+    if (!d.codec_ctx->width || !d.codec_ctx->height)
         return false;
     //qDebug("codec %dx%d, frame %dx%d", w, h, d.frame->width, d.frame->height);
     d.width = d.frame->width;
@@ -156,7 +156,6 @@ QImage VideoDecoder::toImage(QImage::Format fmt, const QSize& outSize_)
     DPTR_D(VideoDecoder);
 
     AVPixelFormat ffmt = (AVPixelFormat) d.frame->format;
-    qDebug() << (int) ffmt;
 
     int w = d.codec_ctx->width;
     int h = d.codec_ctx->height;
@@ -185,7 +184,7 @@ QImage VideoDecoder::toImage(QImage::Format fmt, const QSize& outSize_)
         sws_scale(d.scale_ctx, d.frame->data, d.frame->linesize, 0, h, d.rgb_frame->data, d.rgb_frame->linesize);
 
         QSize inSize(w, h);
-        QSize outSize = outSize_.isNull() ? inSize : outSize_;
+        QSize outSize = outSize_.isValid() ? outSize_ : inSize;
 
         // keep previous outImage if dimensions and format are unchanged
         if ((d.outImage.size() != outSize) || (d.outImage.format() != fmt))

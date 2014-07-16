@@ -49,7 +49,7 @@ public:
         Q_UNUSED(plane);
         return 0;
     }
-    virtual void unmap(void* handle) {}
+    virtual void unmap(void* /*handle*/) {}
 };
 } //namespace QtAV
 

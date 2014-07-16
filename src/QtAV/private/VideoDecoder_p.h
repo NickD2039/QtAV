@@ -45,7 +45,7 @@ public:
         if (scale_ctx)
             sws_freeContext(scale_ctx);
         if (rgb_buffer)
-            av_free(rgb_buffer);
+            delete [] rgb_buffer;
     }
 
     int width, height;

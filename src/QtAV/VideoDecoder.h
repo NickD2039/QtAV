@@ -52,8 +52,8 @@ public:
     void resizeVideoFrame(const QSize& size);
     virtual void resizeVideoFrame(int width, int height);
     //TODO: decodedSize()
-    int width() const;
-    int height() const;
+    int width() const; // NB only valid after decode() has been called at least once (it's the decoded frame's width) - use AVDemuxer::width/height/frameSize
+    int height() const; // ditto for height
 
     QImage toImage(QImage::Format fmt = QImage::Format_ARGB32, const QSize& outSize = QSize());
     QImage toImage(const QSize& outSize) {return toImage(QImage::Format_ARGB32, outSize);}
