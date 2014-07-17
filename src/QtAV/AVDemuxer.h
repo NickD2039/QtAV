@@ -71,6 +71,14 @@ public:
         SeekTarget_AnyFrame,
         SeekTarget_AccurateFrame
     };
+    enum ReadFrameResult {
+        ReadFrame_Success,
+        ReadFrame_ReachedEOF,   // readFrame found EOF
+        ReadFrame_PastEOF,      // stream was already EOF when readFrame called
+        ReadFrame_TryAgain,     // ac_read_frame returned AVERROR(EAGAIN)
+        ReadFrame_Error,        // ac_read_frame returned some other error
+        ReadFrame_WrongStream   // frame read okay, but not videoStream or audioStream.
+    };
 
     AVDemuxer(const QString& fileName = QString(), QObject *parent = 0);
     ~AVDemuxer();
@@ -84,6 +92,7 @@ public:
     bool prepareStreams(); //called by loadFile(). if change to a new stream, call it(e.g. in AVPlayer)
 
     void putFlushPacket();
+    ReadFrameResult readFrameExt();
     bool readFrame();
     Packet* packet() const; //current readed packet
     int stream() const; //current readed stream index
@@ -93,8 +102,8 @@ public:
     SeekUnit seekUnit() const;
     void setSeekTarget(SeekTarget target);
     SeekTarget seekTarget() const;
-    bool seek(qint64 pos); //pos: ms
-    void seek(qreal q); //q: [0,1]. TODO: what if duration() is not valid?
+    bool seek(qint64 pos, int stream = -1); //pos: ms; if stream is -1 then 'a default stream is selected' whatever that means
+    void seek(qreal q, int stream = -1); //q: [0,1]. TODO: what if duration() is not valid?
 
     //format
     AVFormatContext* formatContext();

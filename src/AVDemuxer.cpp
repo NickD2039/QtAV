@@ -184,7 +184,7 @@ MediaStatus AVDemuxer::mediaStatus() const
     return mCurrentMediaStatus;
 }
 
-bool AVDemuxer::readFrame()
+AVDemuxer::ReadFrameResult AVDemuxer::readFrameExt()
 {
     QMutexLocker lock(&mutex);
     Q_UNUSED(lock);
@@ -205,21 +205,21 @@ bool AVDemuxer::readFrame()
                 setMediaStatus(EndOfMedia);
                 qDebug("End of file. %s %d", __FUNCTION__, __LINE__);
                 emit finished();
-                return true;
+                return ReadFrame_ReachedEOF;//true;
             }
             //pkt->data = QByteArray(); //flush
             //return true;
-            return false; //frames after eof are eof frames
+            return ReadFrame_PastEOF; //false; //frames after eof are eof frames
         } else if (ret == AVERROR_INVALIDDATA) {
             emit error(AVError(AVError::ReadError, ret));
             qWarning("AVERROR_INVALIDDATA");
         } else if (ret == AVERROR(EAGAIN)) {
-            return true;
+            return ReadFrame_TryAgain; //true;
         } else {
             emit error(AVError(AVError::ReadError, ret));
         }
         qWarning("[AVDemuxer] error: %s", av_err2str(ret));
-        return false;
+        return ReadFrame_Error;//false;
     }
     stream_idx = packet.stream_index; //TODO: check index
     //check whether the 1st frame is alreay got. emit only once
@@ -229,7 +229,7 @@ bool AVDemuxer::readFrame()
     }
     if (stream_idx != videoStream() && stream_idx != audioStream()) {
         //qWarning("[AVDemuxer] unknown stream index: %d", stream_idx);
-        return false;
+        return ReadFrame_WrongStream; //false;
     }
     pkt->hasKeyFrame = !!(packet.flags & AV_PKT_FLAG_KEY);
     // what about marking packet as invalid and do not use isCorrupt?
@@ -273,7 +273,26 @@ bool AVDemuxer::readFrame()
         qDebug("currupt packet. pts: %f", pkt->pts);
 
     av_free_packet(&packet); //important!
-    return true;
+    return ReadFrame_Success; //true;
+}
+
+bool AVDemuxer::readFrame()
+{
+    switch (readFrameExt())
+    {
+    case ReadFrame_Success:
+    case ReadFrame_ReachedEOF:
+    case ReadFrame_TryAgain:
+        return true;
+
+    case ReadFrame_PastEOF:
+    case ReadFrame_Error:
+    case ReadFrame_WrongStream:
+        return false;
+    default:
+        Q_ASSERT(!"readFrameExt() returned unknown result");
+    }
+    return false;
 }
 
 Packet* AVDemuxer::packet() const
@@ -339,7 +358,7 @@ AVDemuxer::SeekTarget AVDemuxer::seekTarget() const
 }
 
 //TODO: seek by byte
-bool AVDemuxer::seek(qint64 pos)
+bool AVDemuxer::seek(qint64 pos, int stream)
 {
     if ((!a_codec_context && !v_codec_context) || !format_context) {
         qWarning("can not seek. context not ready: %p %p %p", a_codec_context, v_codec_context, format_context);
@@ -390,7 +409,7 @@ bool AVDemuxer::seek(qint64 pos)
         seek_flag = AVSEEK_FLAG_ANY;
     }
     //bool seek_bytes = !!(format_context->iformat->flags & AVFMT_TS_DISCONT) && strcmp("ogg", format_context->iformat->name);
-    int ret = av_seek_frame(format_context, -1, upos, seek_flag);
+    int ret = av_seek_frame(format_context, stream, upos, seek_flag);
     //avformat_seek_file()
 #endif
     if (ret < 0) {
@@ -414,9 +433,9 @@ bool AVDemuxer::seek(qint64 pos)
     return true;
 }
 
-void AVDemuxer::seek(qreal q)
+void AVDemuxer::seek(qreal q, int stream)
 {
-    seek(qint64(q*(double)duration()));
+    seek(qint64(q*(double)duration()), stream);
 }
 
 /*
